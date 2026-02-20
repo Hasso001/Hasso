@@ -5,11 +5,11 @@ import re
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 RHASH = os.getenv('RHASH')
-DOMAIN = "kooxda.com"
 
 def fix_links():
+    # Force look at the last 15 updates
     url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-    response = requests.get(url, params={"allowed_updates": ["channel_post"], "limit": 10}).json()
+    response = requests.get(url, params={"limit": 15}).json()
 
     if not response.get("ok"): return
 
@@ -20,29 +20,33 @@ def fix_links():
         msg_text = post["text"]
         msg_id = post["message_id"]
 
-        pattern = rf'https?://{DOMAIN}/\S+'
-        match = re.search(pattern, msg_text)
+        # Look for the kooxda link
+        match = re.search(rf'https?://kooxda\.com/\S+', msg_text)
 
+        # Only edit if we find a link and it's not already an IV link
         if match and "t.me/iv?" not in msg_text:
             original_url = match.group(0)
             iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
             
-            # Get only the first line/headline
-            first_line = msg_text.split('\n')[0].replace(original_url, "").strip()
-            if not first_line: first_line = "Wararka Maanta"
+            # Use the first line as headline
+            headline = msg_text.split('\n')[0].replace(original_url, "").strip()
+            if not headline: headline = "Wararka Ciyaaraha"
 
-            # THE "HIDDEN SPACE" TRICK:
-            # We split the headline into words and join them with hyperlinked spaces
-            words = first_line.split(' ')
-            # This creates a link attached to the space character between words
-            linked_space = f'<a href="{iv_link}"> </a>'
-            new_html_text = f"<b>{linked_space.join(words)}</b>"
+            # TRICK: Put the link in the spaces to keep headline BLACK
+            words = headline.split(' ')
+            link_space = f'<a href="{iv_link}"> </a>'
+            new_text = f"<b>{link_space.join(words)}</b>"
 
+            # Execute the Edit
             edit_url = f"https://api.telegram.org/bot{TOKEN}/editMessageText"
             requests.post(edit_url, data={
                 "chat_id": CHAT_ID,
                 "message_id": msg_id,
-                "text": new_html_text,
+                "text": new_text,
                 "parse_mode": "HTML"
             })
-            
+            print(f"Updated message {msg_id}")
+
+if __name__ == "__main__":
+    fix_links()
+    
