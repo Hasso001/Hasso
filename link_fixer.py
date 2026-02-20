@@ -27,30 +27,22 @@ def fix_links():
             original_url = match.group(0)
             iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
             
-            # THE "HEADLINE ONLY" LOGIC:
-            # 1. Grab only the very first line of the message
-            first_line = msg_text.split('\n')[0]
-            
-            # 2. Remove the raw URL from that line if it's there
-            clean_headline = first_line.replace(original_url, "").strip()
-            
-            # 3. If the first line was just the link, use a default
-            if not clean_headline:
-                clean_headline = "Halkan ka aqriso warka"
+            # Get only the first line/headline
+            first_line = msg_text.split('\n')[0].replace(original_url, "").strip()
+            if not first_line: first_line = "Wararka Maanta"
 
-            # 4. Set the message to ONLY the bold hyperlink
-            new_html_text = f'<b><a href="{iv_link}">{clean_headline}</a></b>'
+            # THE "HIDDEN SPACE" TRICK:
+            # We split the headline into words and join them with hyperlinked spaces
+            words = first_line.split(' ')
+            # This creates a link attached to the space character between words
+            linked_space = f'<a href="{iv_link}"> </a>'
+            new_html_text = f"<b>{linked_space.join(words)}</b>"
 
             edit_url = f"https://api.telegram.org/bot{TOKEN}/editMessageText"
             requests.post(edit_url, data={
                 "chat_id": CHAT_ID,
                 "message_id": msg_id,
                 "text": new_html_text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": False
+                "parse_mode": "HTML"
             })
-            print(f"Post cleaned to headline only for {msg_id}")
-
-if __name__ == "__main__":
-    fix_links()
-    
+        
