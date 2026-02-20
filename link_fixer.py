@@ -9,7 +9,7 @@ DOMAIN = "kooxda.com"
 
 def fix_links():
     url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-    response = requests.get(url, params={"allowed_updates": ["channel_post"]}).json()
+    response = requests.get(url, params={"allowed_updates": ["channel_post"], "limit": 10}).json()
 
     if not response.get("ok"): return
 
@@ -27,26 +27,29 @@ def fix_links():
             original_url = match.group(0)
             iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
             
-            # THE HYPERLINK MAGIC:
-            # 1. Take the text before the link (this is your heading/title)
-            title = msg_text.split(original_url)[0].strip()
+            # THE "HEADLINE ONLY" LOGIC:
+            # 1. Grab only the very first line of the message
+            first_line = msg_text.split('\n')[0]
             
-            # 2. If there is no text, use a default title
-            if not title:
-                title = "Halkan ka aqriso warka"
+            # 2. Remove the raw URL from that line if it's there
+            clean_headline = first_line.replace(original_url, "").strip()
+            
+            # 3. If the first line was just the link, use a default
+            if not clean_headline:
+                clean_headline = "Halkan ka aqriso warka"
 
-            # 3. Create the hyperlinked text
-            new_html_text = f'<b><a href="{iv_link}">{title}</a></b>'
+            # 4. Set the message to ONLY the bold hyperlink
+            new_html_text = f'<b><a href="{iv_link}">{clean_headline}</a></b>'
 
-            # 4. Update the post
             edit_url = f"https://api.telegram.org/bot{TOKEN}/editMessageText"
             requests.post(edit_url, data={
                 "chat_id": CHAT_ID,
                 "message_id": msg_id,
                 "text": new_html_text,
-                "parse_mode": "HTML"
+                "parse_mode": "HTML",
+                "disable_web_page_preview": False
             })
-            print(f"Hyperlink created for {msg_id}")
+            print(f"Post cleaned to headline only for {msg_id}")
 
 if __name__ == "__main__":
     fix_links()
