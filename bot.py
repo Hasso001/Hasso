@@ -16,13 +16,12 @@ app = Flask(__name__)
 # -----------------------------
 # Bot Config
 # -----------------------------
-TOKEN = "1952280080:AAHREEZV5XK_nbiPCbZ-dhpu5yzNUDyCqo8"  # <- Replace with your new token
+TOKEN = "1952280080:AAHREEZV5XK_nbiPCbZ-dhpu5yzNUDyCqo8"  # Replace with your bot token
 RHASH = "ca7875208a06d7"
 API = f"https://api.telegram.org/bot{TOKEN}"
 
-
 # -----------------------------
-# Get headline from website
+# Fetch headline from webpage
 # -----------------------------
 def get_headline(url):
     try:
@@ -43,9 +42,8 @@ def get_headline(url):
         logging.error(f"Error fetching headline: {e}")
         return "Wararka Ciyaaraha"
 
-
 # -----------------------------
-# Telegram Webhook Receiver
+# Webhook Receiver
 # -----------------------------
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
@@ -53,11 +51,8 @@ def webhook():
     logging.info(f"Update received: {update}")
 
     msg = update.get("channel_post") or update.get("message")
-    if not msg:
-        logging.info("No message found in update.")
-        return "OK", 200
-    if "text" not in msg:
-        logging.info("Message has no text, ignoring.")
+    if not msg or "text" not in msg:
+        logging.info("No text message found, ignoring.")
         return "OK", 200
 
     text = msg["text"]
@@ -66,7 +61,7 @@ def webhook():
 
     # Prevent infinite loop
     if "t.me/iv?" in text:
-        logging.info("Message already contains IV link, ignoring.")
+        logging.info("Message already processed, ignoring.")
         return "OK", 200
 
     # Detect kooxda.com link
@@ -79,17 +74,20 @@ def webhook():
     title = get_headline(original_url)
 
     # -----------------------------
-    # Clean headline text
+    # Clean headline
     # -----------------------------
     clean_title = title.replace("- Kooxda.com", "").replace("Kooxda.com", "").strip()
 
     # -----------------------------
-    # Embed invisible IV link in spaces
+    # Hidden Instant View link for preview (in first space only)
     # -----------------------------
     iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
     invisible_link = f'<a href="{iv_link}">\u200b</a>'
-    # Inject invisible link after each space
-    new_text = clean_title.replace(" ", f" {invisible_link} ")
+    words = clean_title.split(" ", 1)
+    if len(words) > 1:
+        new_text = words[0] + invisible_link + " " + words[1]
+    else:
+        new_text = clean_title + invisible_link
 
     # -----------------------------
     # Delete original message
@@ -104,7 +102,7 @@ def webhook():
         logging.error(f"Failed to delete message: {e}")
 
     # -----------------------------
-    # Send new formatted message
+    # Send new message with hidden IV link
     # -----------------------------
     try:
         resp_send = requests.post(
@@ -113,7 +111,7 @@ def webhook():
                 "chat_id": chat_id,
                 "text": new_text,
                 "parse_mode": "HTML",
-                "disable_web_page_preview": False
+                "disable_web_page_preview": False  # Telegram shows IV preview
             }
         )
         logging.info(f"Send message response: {resp_send.json()}")
@@ -122,9 +120,8 @@ def webhook():
 
     return "OK", 200
 
-
 # -----------------------------
-# Webhook Setup Route
+# Webhook setup route
 # -----------------------------
 @app.route("/")
 def set_webhook():
@@ -139,9 +136,8 @@ def set_webhook():
         logging.error(f"Failed to set webhook: {e}")
     return "Webhook Set!", 200
 
-
 # -----------------------------
-# Local Run (Optional)
+# Optional local run
 # -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
