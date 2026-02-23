@@ -26,37 +26,33 @@ API = f"https://api.telegram.org/bot{TOKEN}"
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = request.get_json()
-    logging.info(f"Update received: {update}")
+    
+    # 🚫 Ignore edited messages to prevent loop
+    if "edited_channel_post" in update:
+        return "OK", 200
 
-    msg = update.get("channel_post")
-    if not msg or "text" not in msg:
-        logging.info("No text message found, ignoring.")
+    if "channel_post" not in update:
+        return "OK", 200
+
+    msg = update["channel_post"]
+    if "text" not in msg:
         return "OK", 200
 
     text = msg["text"]
     chat_id = msg["chat"]["id"]
     message_id = msg["message_id"]
 
-    # Prevent infinite loop
-    if "t.me/iv?" in text:
-        logging.info("Message already processed, ignoring.")
-        return "OK", 200
-
-    # Detect kooxda.com link
+    # Only process kooxda.com links
     match = re.search(r"https://kooxda\.com/\S+", text)
     if not match:
-        logging.info("No kooxda.com link found, ignoring.")
         return "OK", 200
 
     original_url = match.group(0)
 
-    # -----------------------------
-    # Full headline (instant, static or derived)
-    # Replace this with your real headline extraction if needed, or predefine
-    # -----------------------------
-    # Example: get the message text itself or a placeholder headline
-    # To guarantee instant reply, do NOT fetch webpage synchronously
+    # Remove link from visible text
     clean_title = text.replace(original_url, "").replace("- Kooxda.com", "").replace("Kooxda.com", "").strip()
+    if not clean_title:
+        return "OK", 200
 
     # -----------------------------
     # Hidden IV link for Instant View
@@ -64,7 +60,7 @@ def webhook():
     iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
     invisible_link = f'<a href="{iv_link}">\u200b</a>'
 
-    # Inject invisible link into the first space only
+    # Insert hidden link in first space only
     words = clean_title.split(" ", 1)
     if len(words) > 1:
         new_text = words[0] + invisible_link + " " + words[1]
@@ -72,7 +68,7 @@ def webhook():
         new_text = clean_title + invisible_link
 
     # -----------------------------
-    # Edit message instantly
+    # Edit the message instantly
     # -----------------------------
     try:
         resp_edit = requests.post(
@@ -82,7 +78,7 @@ def webhook():
                 "message_id": message_id,
                 "text": new_text,
                 "parse_mode": "HTML",
-                "disable_web_page_preview": False  # triggers Instant View preview
+                "disable_web_page_preview": False  # triggers IV preview
             }
         )
         logging.info(f"Message edited instantly: {resp_edit.json()}")
