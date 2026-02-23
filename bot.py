@@ -1,20 +1,19 @@
 import requests
 import re
-import os
 from flask import Flask, request
 
 app = Flask(__name__)
 
-# 🔐 PUT YOUR NEW TOKEN HERE (REGENERATE FIRST)
+# 🔐 PUT YOUR NEW TOKEN HERE
 TOKEN = "1952280080:AAE1jKGdPbFtOklxyd2DzAdRRuhMfvDlgQI"
 RHASH = "ca7875208a06d7"
 
-TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}"
+API = f"https://api.telegram.org/bot{TOKEN}"
 
 
-# ===============================
-# Get Clean Headline From Website
-# ===============================
+# ==========================
+# Get Headline From Website
+# ==========================
 def get_headline(url):
     try:
         res = requests.get(
@@ -26,8 +25,7 @@ def get_headline(url):
         title = re.search(r"<title>(.*?)</title>", res.text, re.I)
 
         if title:
-            clean = title.group(1).split("-")[0].strip()
-            return clean
+            return title.group(1).split("-")[0].strip()
 
         return "Wararka Ciyaaraha"
 
@@ -36,11 +34,11 @@ def get_headline(url):
         return "Wararka Ciyaaraha"
 
 
-# ===============================
-# Telegram Webhook Route
-# ===============================
+# ==========================
+# Telegram Webhook Receiver
+# ==========================
 @app.route(f"/{TOKEN}", methods=["POST"])
-def telegram_update():
+def webhook():
 
     update = request.get_json()
 
@@ -56,34 +54,39 @@ def telegram_update():
     chat_id = msg["chat"]["id"]
     message_id = msg["message_id"]
 
+    # Avoid re-processing
+    if "t.me/iv?" in text:
+        return "OK", 200
+
     # Detect Kooxda link
     match = re.search(r"https://kooxda\.com/\S+", text)
 
     if not match:
         return "OK", 200
 
-    # Avoid re-edit loop
-    if "t.me/iv?" in text:
-        return "OK", 200
-
     original_url = match.group(0)
 
-    # Get headline
+    # Get clean title
     title = get_headline(original_url)
 
     # Create Instant View link
     iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
 
-    # Final edited message format
-    new_text = f"<b>{title}</b>\n\n{iv_link}"
-
-    # Edit message
+    # 1️⃣ Delete original message
     requests.post(
-        f"{TELEGRAM_API}/editMessageText",
+        f"{API}/deleteMessage",
         json={
             "chat_id": chat_id,
-            "message_id": message_id,
-            "text": new_text,
+            "message_id": message_id
+        }
+    )
+
+    # 2️⃣ Send new formatted message
+    requests.post(
+        f"{API}/sendMessage",
+        json={
+            "chat_id": chat_id,
+            "text": f"<b>{title}</b>\n\n{iv_link}",
             "parse_mode": "HTML",
             "disable_web_page_preview": False
         }
@@ -92,24 +95,24 @@ def telegram_update():
     return "OK", 200
 
 
-# ===============================
+# ==========================
 # Webhook Setup Route
-# ===============================
+# ==========================
 @app.route("/")
 def set_webhook():
 
     webhook_url = f"https://{request.host}/{TOKEN}"
 
     requests.get(
-        f"{TELEGRAM_API}/setWebhook",
+        f"{API}/setWebhook",
         params={"url": webhook_url}
     )
 
-    return "Webhook Set Successfully!", 200
+    return "Webhook Set!", 200
 
 
-# ===============================
-# Run (Local Only)
-# ===============================
+# ==========================
+# Local Run (Optional)
+# ==========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
