@@ -6,7 +6,7 @@ app = Flask(__name__)
 @app.route('/')
 def health(): return "OK", 200
 
-# Using your environment variables
+# Using your verified environment variables
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '1952280080:AAE1jKGdPbFtOklxyd2DzAdRRuhMfvDlgQI')
 RHASH = os.getenv('RHASH', 'ca7875208a06d7')
 DOMAIN = "kooxda.com"
@@ -15,7 +15,7 @@ def get_headline(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, timeout=10, headers=headers)
-        # Finds the specific title of the news article
+        # Finds the specific title between <title> tags
         title_search = re.search('<title>(.*?)</title>', response.text, re.IGNORECASE)
         if title_search:
             return title_search.group(1).split('-')[0].strip()
@@ -24,6 +24,7 @@ def get_headline(url):
         return "Wararka Ciyaaraha"
 
 def run_bot():
+    # Clear webhooks to ensure polling works on Koyeb
     requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
     offset = 0
     while True:
@@ -32,28 +33,26 @@ def run_bot():
             r = requests.get(url, params={"offset": offset, "timeout": 30}).json()
             if r.get("ok"):
                 for update in r["result"]:
-                    # Checks both regular messages and channel posts
+                    # Capture the post from a user or a channel
                     msg = update.get("message") or update.get("channel_post")
                     if msg:
                         text = msg.get("text") or msg.get("caption") or ""
                         chat_id = msg["chat"]["id"]
-                        message_id = msg["message_id"]
+                        message_id = msg["message_id"] # This is the key to editing
                         
-                        # Match the link you just posted
                         match = re.search(rf'https?://{DOMAIN}/\S+', text)
                         
-                        # Only edit if it contains the link and isn't already the IV version
+                        # Only proceed if there is a link and the bot hasn't edited it yet
                         if match and "t.me/iv?" not in text:
                             original_url = match.group(0)
                             title = get_headline(original_url)
                             iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
                             
-                            # THE CLEAN FIX: 
-                            # 1. \u200b is invisible, hiding the link from the text line.
-                            # 2. <b>{title}</b> keeps the headline bold and non-clickable.
+                            # \u200b is an invisible character that holds the link 
+                            # This removes "kooxda.com" from appearing next to the title
                             new_text = f'<a href="{iv_link}">\u200b</a><b>{title}</b>'
                             
-                            # Edit the existing message instead of sending a new one
+                            # WE ONLY USE EDIT HERE. NO SENDMESSAGE.
                             requests.post(f"https://api.telegram.org/bot{TOKEN}/editMessageText", 
                                           data={
                                               "chat_id": chat_id,
@@ -68,5 +67,5 @@ def run_bot():
 
 if __name__ == "__main__":
     threading.Thread(target=run_bot, daemon=True).start()
-    # Koyeb build command requirement
+    # Koyeb listening port
     app.run(host='0.0.0.0', port=8000)
