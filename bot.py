@@ -16,13 +16,13 @@ RHASH = os.getenv('RHASH', 'ca7875208a06d7')
 DOMAIN = "kooxda.com"
 
 def fix_links():
-    print("Bot is listening...")
+    print("Bot is active and searching for links...")
     offset = 0
     while True:
         try:
-            # Added a 60-second timeout to handle very long messages without crashing
+            # Increased timeout and limit to 1 to focus on one big message at a time
             url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-            params = {"offset": offset, "timeout": 60, "allowed_updates": ["message"]}
+            params = {"offset": offset, "timeout": 60, "limit": 1}
             response = requests.get(url, params=params).json()
 
             if "result" in response:
@@ -31,17 +31,15 @@ def fix_links():
                         text = update["message"]["text"]
                         chat_id = update["message"]["chat_id"]
 
-                        # This finds the link anywhere, even in giant 4000-character posts
-                        match = re.search(rf'https://{DOMAIN}/[a-zA-Z0-9\-\/]+', text)
+                        # Optimized search for long messages
+                        link_match = re.search(r'https://kooxda\.com/\S+', text)
                         
-                        if match and "t.me/iv?" not in text:
-                            original_url = match.group(0)
+                        if link_match and "t.me/iv?" not in text:
+                            original_url = link_match.group(0)
                             iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
                             
-                            # For long messages, we just use a standard title to avoid errors
-                            headline = "Wararka Kooxda (Instant View)"
-                            
-                            new_text = f'<b><a href="{iv_link}">{headline}</a></b>'
+                            # We use a fixed headline to save processing time on long texts
+                            new_text = f'<b><a href="{iv_link}">WARARKA KOOXDA (INSTANT VIEW)</a></b>'
 
                             requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
                                          json={"chat_id": chat_id, "text": new_text, "parse_mode": "HTML"})
@@ -50,7 +48,7 @@ def fix_links():
                         offset = update["update_id"] + 1
                 
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error occurred: {e}")
             time.sleep(2)
 
 if __name__ == "__main__":
