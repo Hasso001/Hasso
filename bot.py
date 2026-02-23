@@ -11,23 +11,29 @@ RHASH = os.getenv('RHASH', 'ca7875208a06d7')
 
 def get_article_title(url):
     try:
-        response = requests.get(url, timeout=10)
-        soup = BeautifulSoup(response.text, 'lxml')
-        # This grabs the actual <title> of the webpage
-        return soup.title.string.split('-')[0].strip() 
-    except:
-        return "Wararka Ciyaaraha" # Fallback if site is slow
+        # Added a strict 3-second timeout so the bot doesn't hang
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, timeout=3, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Try to find the title, otherwise use fallback
+        if soup.title and soup.title.string:
+            return soup.title.string.split('-')[0].strip()
+        return "Wararka Ciyaaraha"
+    except Exception as e:
+        print(f"Scrape error: {e}")
+        return "Wararka Ciyaaraha"
 
 def fix_links():
     offset = 0
     while True:
         try:
             url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-            params = {"offset": offset, "timeout": 30, "limit": 1}
+            params = {"offset": offset, "timeout": 20, "limit": 1}
             res = requests.get(url, params=params).json()
 
             for upd in res.get("result", []):
-                msg = upd.get("message")
+                msg = upd.get("message") or upd.get("channel_post")
                 if msg:
                     text = msg.get("text") or msg.get("caption") or ""
                     chat_id = msg["chat"]["id"]
@@ -36,20 +42,19 @@ def fix_links():
                     if match and "t.me/iv?" not in text:
                         original_url = match.group(0)
                         
-                        # STEP 1: Get the real headline from the website
+                        # Get headline or fallback
                         article_headline = get_article_title(original_url)
-                        
-                        # STEP 2: Create the IV link
                         iv_url = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
                         
-                        # STEP 3: Put that headline in the bold title spot
+                        # Format: Bold Title with hidden Instant View link
                         reply = f'<b><a href="{iv_url}">{article_headline}</a></b>'
                         
                         requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
                                      json={"chat_id": chat_id, "text": reply, "parse_mode": "HTML"})
                 
                 offset = upd["update_id"] + 1
-        except:
+        except Exception as e:
+            print(f"Loop error: {e}")
             time.sleep(2)
 
 if __name__ == "__main__":
