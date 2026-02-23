@@ -3,22 +3,23 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Hardcoded to ensure no environment errors
+# Credentials hardcoded to prevent Environment Variable errors
 TOKEN = "1952280080:AAE1jKGdPbFtOklxyd2DzAdRRuhMfvDlgQI"
 RHASH = "ca7875208a06d7"
 
 def get_headline(url):
     try:
-        res = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+        res = requests.get(url, timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
         title = re.search('<title>(.*?)</title>', res.text, re.I)
+        # Returns the clean headline for Ciyaaraha Dunida
         return title.group(1).split('-')[0].strip() if title else "Wararka Ciyaaraha"
     except:
         return "Wararka Ciyaaraha"
 
 @app.route(f'/{TOKEN}', methods=['POST'])
-def respond():
+def telegram_update():
     update = request.get_json()
-    # Check for channel posts or messages
+    # Captures channel posts or group messages
     msg = update.get("channel_post") or update.get("message")
     
     if msg and "text" in msg:
@@ -26,16 +27,17 @@ def respond():
         chat_id = msg["chat"]["id"]
         message_id = msg["message_id"]
         
+        # Look for the news link
         match = re.search(r'https://kooxda\.com/\S+', text)
         if match and "t.me/iv?" not in text:
             url = match.group(0)
             title = get_headline(url)
             iv_link = f"https://t.me/iv?url={url}&rhash={RHASH}"
             
-            # Invisible link trick to hide "kooxda.com"
+            # \u200b is an invisible character that removes "kooxda.com" from the title
             clean_text = f'<a href="{iv_link}">\u200b</a><b>{title}</b>'
             
-            # EDIT the original message
+            # EDITS the original message instantly
             requests.post(f"https://api.telegram.org/bot{TOKEN}/editMessageText", 
                          json={
                              "chat_id": chat_id,
@@ -46,8 +48,8 @@ def respond():
     return "OK", 200
 
 @app.route('/')
-def setup():
-    # This automatically connects your bot to Koyeb when you visit the URL
+def home():
+    # Visit your Koyeb URL once to trigger this setup
     webhook_url = f"https://{request.host}/{TOKEN}"
     requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}")
-    return "Bot is Connected!", 200
+    return "Bot Setup Complete!", 200
