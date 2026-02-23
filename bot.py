@@ -11,19 +11,12 @@ RHASH = os.getenv('RHASH', 'ca7875208a06d7')
 
 def get_headline(url):
     try:
-        # We tell the website we are a real browser so we aren't blocked
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, timeout=5, headers=headers)
-        soup = BeautifulSoup(response.text, 'lxml')
-        
-        # Look for the main headline (h1) first, then the page title
-        headline = soup.find('h1')
-        if headline:
-            return headline.get_text().strip()
-        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        # Grabs headline from the site title
         if soup.title:
             return soup.title.string.split('-')[0].strip()
-            
         return "Wararka Ciyaaraha"
     except:
         return "Wararka Ciyaaraha"
@@ -33,8 +26,7 @@ def fix_links():
     while True:
         try:
             url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-            # We specifically look for messages with links
-            params = {"offset": offset, "timeout": 30}
+            params = {"offset": offset, "timeout": 20}
             res = requests.get(url, params=params).json()
 
             for upd in res.get("result", []):
@@ -42,21 +34,16 @@ def fix_links():
                 if msg:
                     chat_id = msg["chat"]["id"]
                     content = msg.get("text") or msg.get("caption") or ""
-                    
                     match = re.search(r'https://kooxda\.com/\S+', content)
+                    
                     if match and "t.me/iv?" not in content:
                         link = match.group(0)
-                        
-                        # Use the new smarter headline finder
-                        dynamic_title = get_headline(link)
+                        title = get_headline(link)
                         iv_url = f"https://t.me/iv?url={link}&rhash={RHASH}"
-                        
-                        # This places the article headline in the bold spot
-                        reply_text = f'<b><a href="{iv_url}">{dynamic_title}</a></b>'
-                        
+                        # This places the article title in the bold spot
+                        reply = f'<b><a href="{iv_url}">{title}</a></b>'
                         requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                                     json={"chat_id": chat_id, "text": reply_text, "parse_mode": "HTML"})
-                
+                                     json={"chat_id": chat_id, "text": reply, "parse_mode": "HTML"})
                 offset = upd["update_id"] + 1
         except:
             time.sleep(2)
