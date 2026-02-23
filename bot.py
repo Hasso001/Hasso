@@ -10,38 +10,41 @@ RHASH = os.getenv('RHASH', 'ca7875208a06d7')
 DOMAIN = "kooxda.com"
 
 def fix_links():
-    print("Bot is searching both Text and Captions...")
     offset = 0
+    print("Bot is searching Text + Photo Captions...")
     while True:
         try:
+            # We explicitly ask for ALL message types
             url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-            # Limit 1 ensures the Nano server doesn't crash on giant posts
-            params = {"offset": offset, "timeout": 60, "limit": 1}
+            params = {"offset": offset, "timeout": 30, "allowed_updates": ["message", "edited_message", "channel_post"]}
             res = requests.get(url, params=params).json()
 
             for upd in res.get("result", []):
-                msg = upd.get("message") or upd.get("edited_message")
+                # Check every possible place text could hide
+                msg = upd.get("message") or upd.get("edited_message") or upd.get("channel_post")
+                
                 if msg:
-                    # FIX: This now looks at 'text' OR 'caption' for photos
-                    raw_text = msg.get("text") or msg.get("caption") or ""
                     chat_id = msg["chat"]["id"]
-
-                    # Search for the link anywhere in the message
-                    match = re.search(r'https://kooxda\.com/\S+', raw_text)
+                    # This captures regular text AND text under photos/videos
+                    content = msg.get("text") or msg.get("caption") or ""
                     
-                    if match and "t.me/iv?" not in raw_text:
-                        link = match.group(0)
-                        iv_url = f"https://t.me/iv?url={link}&rhash={RHASH}"
+                    if content:
+                        # Find the link anywhere in the block
+                        match = re.search(r'https://kooxda\.com/\S+', content)
                         
-                        # Static text prevents errors with long string manipulation
-                        reply = f'<b><a href="{iv_url}">WARARKA KOOXDA (INSTANT VIEW)</a></b>'
-                        
-                        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                                     json={"chat_id": chat_id, "text": reply, "parse_mode": "HTML"})
+                        if match and "t.me/iv?" not in content:
+                            link = match.group(0)
+                            iv_url = f"https://t.me/iv?url={link}&rhash={RHASH}"
+                            
+                            # Simplify the reply to ensure it sends even on low memory
+                            reply_text = f'<b><a href="{iv_url}">WARARKA KOOXDA (INSTANT VIEW)</a></b>'
+                            
+                            requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+                                         json={"chat_id": chat_id, "text": reply_text, "parse_mode": "HTML"})
                 
                 offset = upd["update_id"] + 1
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Loop Error: {e}")
             time.sleep(2)
 
 if __name__ == "__main__":
