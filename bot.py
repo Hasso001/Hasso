@@ -14,7 +14,7 @@ def health_check():
 
 # 2. Your Bot Configuration
 # These will be pulled from the 'Environment Variables' you set in Koyeb
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '1952280080:AAE1jKGdPbFtOklxy...') 
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '1952280080:AAE1jKGdPbFtOklxyd2DzAdRRuhMfvDlgQI') 
 RHASH = os.getenv('RHASH', 'ca7875208a06d7')
 DOMAIN = "kooxda.com"
 
