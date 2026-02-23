@@ -1,5 +1,3 @@
 flask
 requests
-beautifulsoup4
 gunicorn
-eventlet
