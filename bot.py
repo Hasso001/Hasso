@@ -3,108 +3,70 @@ import re
 import logging
 from flask import Flask, request
 
-# -----------------------------
-# Logging
-# -----------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
+# Logging setup for Koyeb console
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 app = Flask(__name__)
 
-# -----------------------------
 # Bot Config
-# -----------------------------
-TOKEN = "1952280080:AAHREEZV5XK_nbiPCbZ-dhpu5yzNUDyCqo8"  # Replace with your Telegram bot token
+TOKEN = "1952280080:AAHREEZV5XK_nbiPCbZ-dhpu5yzNUDyCqo8"
 RHASH = "ca7875208a06d7"
 API = f"https://api.telegram.org/bot{TOKEN}"
 
-# -----------------------------
-# Webhook Receiver
-# -----------------------------
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = request.get_json()
     
-    # 🚫 Ignore edited messages to prevent loop
-    if "edited_channel_post" in update:
-        return "OK", 200
-
-    if "channel_post" not in update:
+    # Skip edited posts to prevent infinite loops
+    if "edited_channel_post" in update or "channel_post" not in update:
         return "OK", 200
 
     msg = update["channel_post"]
-    if "text" not in msg:
-        return "OK", 200
-
-    text = msg["text"]
+    text = msg.get("text", "")
     chat_id = msg["chat"]["id"]
     message_id = msg["message_id"]
 
-    # Only process kooxda.com links
+    # Match kooxda.com links
     match = re.search(r"https://kooxda\.com/\S+", text)
-    if not match:
+    if not match or "t.me/iv?" in text:
         return "OK", 200
 
     original_url = match.group(0)
 
-    # Remove link from visible text
+    # Clean the title by removing the link and domain
     clean_title = text.replace(original_url, "").replace("- Kooxda.com", "").replace("Kooxda.com", "").strip()
     if not clean_title:
         return "OK", 200
 
-    # -----------------------------
-    # Hidden IV link for Instant View
-    # -----------------------------
+    # Hidden IV link trick
     iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
     invisible_link = f'<a href="{iv_link}">\u200b</a>'
 
-    # Insert hidden link in first space only
+    # Insert invisible link between the first and second word
     words = clean_title.split(" ", 1)
-    if len(words) > 1:
-        new_text = words[0] + invisible_link + " " + words[1]
-    else:
-        new_text = clean_title + invisible_link
+    new_text = f"{words[0]}{invisible_link} {words[1]}" if len(words) > 1 else f"{clean_title}{invisible_link}"
 
-    # -----------------------------
-    # Edit the message instantly
-    # -----------------------------
+    # EDIT the message instantly
     try:
-        resp_edit = requests.post(
-            f"{API}/editMessageText",
-            json={
-                "chat_id": chat_id,
-                "message_id": message_id,
-                "text": new_text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": False  # triggers IV preview
-            }
-        )
-        logging.info(f"Message edited instantly: {resp_edit.json()}")
+        requests.post(f"{API}/editMessageText", json={
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": f"<b>{new_text}</b>", # Added <b> for bold
+            "parse_mode": "HTML",
+            "disable_web_page_preview": False
+        })
     except Exception as e:
-        logging.error(f"Failed to edit message: {e}")
+        logging.error(f"Edit failed: {e}")
 
     return "OK", 200
 
-# -----------------------------
-# Webhook setup route
-# -----------------------------
 @app.route("/")
 def set_webhook():
+    # Automatically links Telegram to your Koyeb URL
     webhook_url = f"https://{request.host}/{TOKEN}"
-    try:
-        resp = requests.get(
-            f"{API}/setWebhook",
-            params={"url": webhook_url}
-        )
-        logging.info(f"Webhook set response: {resp.json()}")
-    except Exception as e:
-        logging.error(f"Failed to set webhook: {e}")
-    return "Webhook Set!", 200
+    requests.get(f"{API}/setWebhook", params={"url": webhook_url})
+    return "Webhook Set Successfully!", 200
 
-# -----------------------------
-# Optional local run
-# -----------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    # Must use port 8000 for Koyeb
+    app.run(host="0.0.0.0", port=8000)
