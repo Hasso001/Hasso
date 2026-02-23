@@ -4,16 +4,12 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# 🔐 PUT YOUR NEW TOKEN HERE
-TOKEN = "1952280080:AAE1jKGdPbFtOklxyd2DzAdRRuhMfvDlgQI"
+TOKEN = "1952280080:AAHREEZV5XK_nbiPCbZ-dhpu5yzNUDyCqo8"
 RHASH = "ca7875208a06d7"
 
 API = f"https://api.telegram.org/bot{TOKEN}"
 
 
-# ==========================
-# Get Headline From Website
-# ==========================
 def get_headline(url):
     try:
         res = requests.get(
@@ -29,14 +25,10 @@ def get_headline(url):
 
         return "Wararka Ciyaaraha"
 
-    except Exception as e:
-        print("Headline Error:", e)
+    except:
         return "Wararka Ciyaaraha"
 
 
-# ==========================
-# Telegram Webhook Receiver
-# ==========================
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
 
@@ -54,25 +46,20 @@ def webhook():
     chat_id = msg["chat"]["id"]
     message_id = msg["message_id"]
 
-    # Avoid re-processing
     if "t.me/iv?" in text:
         return "OK", 200
 
-    # Detect Kooxda link
     match = re.search(r"https://kooxda\.com/\S+", text)
 
     if not match:
         return "OK", 200
 
     original_url = match.group(0)
-
-    # Get clean title
     title = get_headline(original_url)
 
-    # Create Instant View link
     iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
 
-    # 1️⃣ Delete original message
+    # Delete original message
     requests.post(
         f"{API}/deleteMessage",
         json={
@@ -81,7 +68,7 @@ def webhook():
         }
     )
 
-    # 2️⃣ Send new formatted message
+    # Send formatted message with Instant View
     requests.post(
         f"{API}/sendMessage",
         json={
@@ -95,9 +82,6 @@ def webhook():
     return "OK", 200
 
 
-# ==========================
-# Webhook Setup Route
-# ==========================
 @app.route("/")
 def set_webhook():
 
@@ -111,8 +95,5 @@ def set_webhook():
     return "Webhook Set!", 200
 
 
-# ==========================
-# Local Run (Optional)
-# ==========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
