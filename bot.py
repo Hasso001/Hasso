@@ -1,54 +1,43 @@
-import os
-import requests
-import re
-import time
-import threading
+import os, requests, re, time, threading
 from flask import Flask
 
 app = Flask(__name__)
-
 @app.route('/')
-def health_check():
-    return "Bot is running!", 200
+def health(): return "OK", 200
 
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '1952280080:AAE1jKGdPbFtOklxyd2DzAdRRuhMfvDlgQI')
 RHASH = os.getenv('RHASH', 'ca7875208a06d7')
 DOMAIN = "kooxda.com"
 
 def fix_links():
-    print("Bot is active and searching for links...")
     offset = 0
     while True:
         try:
-            # Increased timeout and limit to 1 to focus on one big message at a time
+            # We specifically ask Telegram for 'message' and 'edited_message'
             url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-            params = {"offset": offset, "timeout": 60, "limit": 1}
-            response = requests.get(url, params=params).json()
+            params = {"offset": offset, "timeout": 60, "allowed_updates": ["message", "edited_message"]}
+            res = requests.get(url, params=params).json()
 
-            if "result" in response:
-                for update in response["result"]:
-                    if "message" in update and "text" in update["message"]:
-                        text = update["message"]["text"]
-                        chat_id = update["message"]["chat_id"]
+            for upd in res.get("result", []):
+                msg = upd.get("message") or upd.get("edited_message")
+                if msg:
+                    # KEY FIX: This looks at regular text AND photo captions
+                    raw_text = msg.get("text") or msg.get("caption") or ""
+                    chat_id = msg["chat"]["id"]
 
-                        # Optimized search for long messages
-                        link_match = re.search(r'https://kooxda\.com/\S+', text)
-                        
-                        if link_match and "t.me/iv?" not in text:
-                            original_url = link_match.group(0)
-                            iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
-                            
-                            # We use a fixed headline to save processing time on long texts
-                            new_text = f'<b><a href="{iv_link}">WARARKA KOOXDA (INSTANT VIEW)</a></b>'
-
-                            requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                                         json={"chat_id": chat_id, "text": new_text, "parse_mode": "HTML"})
+                    # Optimized search to find the link anywhere in giant text
+                    match = re.search(r'https://kooxda\.com/\S+', raw_text)
                     
-                    if "update_id" in update:
-                        offset = update["update_id"] + 1
+                    if match and "t.me/iv?" not in raw_text:
+                        link = match.group(0)
+                        iv_url = f"https://t.me/iv?url={link}&rhash={RHASH}"
+                        reply = f'<b><a href="{iv_url}">WARARKA KOOXDA (INSTANT VIEW)</a></b>'
+                        
+                        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+                                     json={"chat_id": chat_id, "text": reply, "parse_mode": "HTML"})
                 
-        except Exception as e:
-            print(f"Error occurred: {e}")
+                offset = upd["update_id"] + 1
+        except:
             time.sleep(2)
 
 if __name__ == "__main__":
