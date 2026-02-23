@@ -1,4 +1,4 @@
-import os, requests, re, time, threading
+import requests, re, time, threading
 from flask import Flask
 
 app = Flask(__name__)
@@ -6,16 +6,16 @@ app = Flask(__name__)
 @app.route('/')
 def health(): return "OK", 200
 
-# Environment variables from your Koyeb settings
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-RHASH = os.getenv('RHASH')
+# SET YOUR CREDENTIALS DIRECTLY HERE
+TOKEN = "1952280080:AAE1jKGdPbFtOklxyd2DzAdRRuhMfvDlgQI"
+RHASH = "ca7875208a06d7"
 DOMAIN = "kooxda.com"
 
 def get_headline(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, timeout=10, headers=headers)
-        # Grabs the actual news headline
+        # This finds the exact news title from kooxda.com
         title_search = re.search('<title>(.*?)</title>', response.text, re.IGNORECASE)
         if title_search:
             return title_search.group(1).split('-')[0].strip()
@@ -24,7 +24,7 @@ def get_headline(url):
         return "Wararka Ciyaaraha"
 
 def run_bot():
-    # Clear old webhooks to ensure the bot starts listening
+    # Clear any old settings that block the bot
     requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
     offset = 0
     while True:
@@ -33,7 +33,6 @@ def run_bot():
             r = requests.get(url, params={"offset": offset, "timeout": 30}).json()
             if r.get("ok"):
                 for update in r["result"]:
-                    # Works on both private messages and channel posts
                     msg = update.get("message") or update.get("channel_post")
                     if msg:
                         text = msg.get("text") or msg.get("caption") or ""
@@ -41,17 +40,16 @@ def run_bot():
                         message_id = msg["message_id"]
                         
                         match = re.search(rf'https?://{DOMAIN}/\S+', text)
-                        # Detects raw link and EDITS it instead of resending
+                        # The bot looks for the link and EDITS it
                         if match and "t.me/iv?" not in text:
                             original_url = match.group(0)
                             title = get_headline(original_url)
                             iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
                             
-                            # \u200b is an invisible character that holds the link
-                            # This makes the title bold but NOT a blue clickable link
+                            # Invisible link trick to remove "kooxda.com" text
                             new_text = f'<a href="{iv_link}">\u200b</a><b>{title}</b>'
                             
-                            # Strictly EDIT the original post
+                            # Use EDIT instead of SEND to transform the original post
                             requests.post(f"https://api.telegram.org/bot{TOKEN}/editMessageText", 
                                           data={
                                               "chat_id": chat_id,
@@ -66,4 +64,5 @@ def run_bot():
 
 if __name__ == "__main__":
     threading.Thread(target=run_bot, daemon=True).start()
+    # Koyeb requires port 8000 to show "Healthy"
     app.run(host='0.0.0.0', port=8000)
