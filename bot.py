@@ -1,68 +1,53 @@
-import requests, re, time, threading
-from flask import Flask
+import requests, re, os
+from flask import Flask, request
 
 app = Flask(__name__)
 
-@app.route('/')
-def health(): return "Bot is Alive", 200
-
-# Hardcoded Credentials to avoid environment errors
+# Hardcoded to ensure no environment errors
 TOKEN = "1952280080:AAE1jKGdPbFtOklxyd2DzAdRRuhMfvDlgQI"
 RHASH = "ca7875208a06d7"
-DOMAIN = "kooxda.com"
 
 def get_headline(url):
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, timeout=10, headers=headers)
-        # Finds the article title for your channel
-        title_search = re.search('<title>(.*?)</title>', response.text, re.IGNORECASE)
-        if title_search:
-            return title_search.group(1).split('-')[0].strip()
-        return "Wararka Ciyaaraha"
+        res = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+        title = re.search('<title>(.*?)</title>', res.text, re.I)
+        return title.group(1).split('-')[0].strip() if title else "Wararka Ciyaaraha"
     except:
         return "Wararka Ciyaaraha"
 
-def run_bot():
-    # RESET: Force Telegram to stop sending data to old webhooks
-    requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
+@app.route(f'/{TOKEN}', methods=['POST'])
+def respond():
+    update = request.get_json()
+    # Check for channel posts or messages
+    msg = update.get("channel_post") or update.get("message")
     
-    offset = 0
-    while True:
-        try:
-            url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-            r = requests.get(url, params={"offset": offset, "timeout": 20}).json()
-            if r.get("ok"):
-                for update in r["result"]:
-                    msg = update.get("message") or update.get("channel_post")
-                    if msg:
-                        text = msg.get("text") or msg.get("caption") or ""
-                        chat_id = msg["chat"]["id"]
-                        message_id = msg["message_id"]
-                        
-                        match = re.search(rf'https?://{DOMAIN}/\S+', text)
-                        # Edits the original post to remove the link and add the headline
-                        if match and "t.me/iv?" not in text:
-                            original_url = match.group(0)
-                            title = get_headline(original_url)
-                            iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
-                            
-                            # Invisible link trick to remove "kooxda.com"
-                            new_text = f'<a href="{iv_link}">\u200b</a><b>{title}</b>'
-                            
-                            # EDIT the original message instantly
-                            requests.post(f"https://api.telegram.org/bot{TOKEN}/editMessageText", 
-                                          json={
-                                              "chat_id": chat_id,
-                                              "message_id": message_id,
-                                              "text": new_text,
-                                              "parse_mode": "HTML"
-                                          })
-                    offset = update["update_id"] + 1
-        except Exception:
-            time.sleep(5)
+    if msg and "text" in msg:
+        text = msg["text"]
+        chat_id = msg["chat"]["id"]
+        message_id = msg["message_id"]
+        
+        match = re.search(r'https://kooxda\.com/\S+', text)
+        if match and "t.me/iv?" not in text:
+            url = match.group(0)
+            title = get_headline(url)
+            iv_link = f"https://t.me/iv?url={url}&rhash={RHASH}"
+            
+            # Invisible link trick to hide "kooxda.com"
+            clean_text = f'<a href="{iv_link}">\u200b</a><b>{title}</b>'
+            
+            # EDIT the original message
+            requests.post(f"https://api.telegram.org/bot{TOKEN}/editMessageText", 
+                         json={
+                             "chat_id": chat_id,
+                             "message_id": message_id,
+                             "text": clean_text,
+                             "parse_mode": "HTML"
+                         })
+    return "OK", 200
 
-if __name__ == "__main__":
-    threading.Thread(target=run_bot, daemon=True).start()
-    # Koyeb must use port 8000
-    app.run(host='0.0.0.0', port=8000)
+@app.route('/')
+def setup():
+    # This automatically connects your bot to Koyeb when you visit the URL
+    webhook_url = f"https://{request.host}/{TOKEN}"
+    requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}")
+    return "Bot is Connected!", 200
