@@ -4,9 +4,9 @@ from flask import Flask
 app = Flask(__name__)
 
 @app.route('/')
-def health(): return "OK", 200
+def health(): return "Bot is Alive", 200
 
-# SET YOUR CREDENTIALS DIRECTLY HERE
+# Hardcoded Credentials to avoid environment errors
 TOKEN = "1952280080:AAE1jKGdPbFtOklxyd2DzAdRRuhMfvDlgQI"
 RHASH = "ca7875208a06d7"
 DOMAIN = "kooxda.com"
@@ -15,7 +15,7 @@ def get_headline(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, timeout=10, headers=headers)
-        # This finds the exact news title from kooxda.com
+        # Finds the article title for your channel
         title_search = re.search('<title>(.*?)</title>', response.text, re.IGNORECASE)
         if title_search:
             return title_search.group(1).split('-')[0].strip()
@@ -24,13 +24,14 @@ def get_headline(url):
         return "Wararka Ciyaaraha"
 
 def run_bot():
-    # Clear any old settings that block the bot
+    # RESET: Force Telegram to stop sending data to old webhooks
     requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
+    
     offset = 0
     while True:
         try:
             url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-            r = requests.get(url, params={"offset": offset, "timeout": 30}).json()
+            r = requests.get(url, params={"offset": offset, "timeout": 20}).json()
             if r.get("ok"):
                 for update in r["result"]:
                     msg = update.get("message") or update.get("channel_post")
@@ -40,29 +41,28 @@ def run_bot():
                         message_id = msg["message_id"]
                         
                         match = re.search(rf'https?://{DOMAIN}/\S+', text)
-                        # The bot looks for the link and EDITS it
+                        # Edits the original post to remove the link and add the headline
                         if match and "t.me/iv?" not in text:
                             original_url = match.group(0)
                             title = get_headline(original_url)
                             iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
                             
-                            # Invisible link trick to remove "kooxda.com" text
+                            # Invisible link trick to remove "kooxda.com"
                             new_text = f'<a href="{iv_link}">\u200b</a><b>{title}</b>'
                             
-                            # Use EDIT instead of SEND to transform the original post
+                            # EDIT the original message instantly
                             requests.post(f"https://api.telegram.org/bot{TOKEN}/editMessageText", 
-                                          data={
+                                          json={
                                               "chat_id": chat_id,
                                               "message_id": message_id,
                                               "text": new_text,
-                                              "parse_mode": "HTML",
-                                              "disable_web_page_preview": False
+                                              "parse_mode": "HTML"
                                           })
                     offset = update["update_id"] + 1
-        except:
+        except Exception:
             time.sleep(5)
 
 if __name__ == "__main__":
     threading.Thread(target=run_bot, daemon=True).start()
-    # Koyeb requires port 8000 to show "Healthy"
+    # Koyeb must use port 8000
     app.run(host='0.0.0.0', port=8000)
