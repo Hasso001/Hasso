@@ -9,19 +9,23 @@ def health(): return "OK", 200
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '1952280080:AAE1jKGdPbFtOklxyd2DzAdRRuhMfvDlgQI')
 RHASH = os.getenv('RHASH', 'ca7875208a06d7')
 
-def get_article_title(url):
+def get_headline(url):
     try:
-        # Added a strict 3-second timeout so the bot doesn't hang
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, timeout=3, headers=headers)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # We tell the website we are a real browser so we aren't blocked
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        response = requests.get(url, timeout=5, headers=headers)
+        soup = BeautifulSoup(response.text, 'lxml')
         
-        # Try to find the title, otherwise use fallback
-        if soup.title and soup.title.string:
+        # Look for the main headline (h1) first, then the page title
+        headline = soup.find('h1')
+        if headline:
+            return headline.get_text().strip()
+        
+        if soup.title:
             return soup.title.string.split('-')[0].strip()
+            
         return "Wararka Ciyaaraha"
-    except Exception as e:
-        print(f"Scrape error: {e}")
+    except:
         return "Wararka Ciyaaraha"
 
 def fix_links():
@@ -29,32 +33,32 @@ def fix_links():
     while True:
         try:
             url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-            params = {"offset": offset, "timeout": 20, "limit": 1}
+            # We specifically look for messages with links
+            params = {"offset": offset, "timeout": 30}
             res = requests.get(url, params=params).json()
 
             for upd in res.get("result", []):
                 msg = upd.get("message") or upd.get("channel_post")
                 if msg:
-                    text = msg.get("text") or msg.get("caption") or ""
                     chat_id = msg["chat"]["id"]
-
-                    match = re.search(r'https://kooxda\.com/\S+', text)
-                    if match and "t.me/iv?" not in text:
-                        original_url = match.group(0)
+                    content = msg.get("text") or msg.get("caption") or ""
+                    
+                    match = re.search(r'https://kooxda\.com/\S+', content)
+                    if match and "t.me/iv?" not in content:
+                        link = match.group(0)
                         
-                        # Get headline or fallback
-                        article_headline = get_article_title(original_url)
-                        iv_url = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
+                        # Use the new smarter headline finder
+                        dynamic_title = get_headline(link)
+                        iv_url = f"https://t.me/iv?url={link}&rhash={RHASH}"
                         
-                        # Format: Bold Title with hidden Instant View link
-                        reply = f'<b><a href="{iv_url}">{article_headline}</a></b>'
+                        # This places the article headline in the bold spot
+                        reply_text = f'<b><a href="{iv_url}">{dynamic_title}</a></b>'
                         
                         requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                                     json={"chat_id": chat_id, "text": reply, "parse_mode": "HTML"})
+                                     json={"chat_id": chat_id, "text": reply_text, "parse_mode": "HTML"})
                 
                 offset = upd["update_id"] + 1
-        except Exception as e:
-            print(f"Loop error: {e}")
+        except:
             time.sleep(2)
 
 if __name__ == "__main__":
