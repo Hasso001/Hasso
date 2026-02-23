@@ -4,7 +4,7 @@ import logging
 from flask import Flask, request
 
 # -----------------------------
-# Logging Setup
+# Logging
 # -----------------------------
 logging.basicConfig(
     level=logging.INFO,
@@ -16,31 +16,9 @@ app = Flask(__name__)
 # -----------------------------
 # Bot Config
 # -----------------------------
-TOKEN = "1952280080:AAHREEZV5XK_nbiPCbZ-dhpu5yzNUDyCqo8"  # Replace with your bot token
+TOKEN = "1952280080:AAHREEZV5XK_nbiPCbZ-dhpu5yzNUDyCqo8"  # Replace with your Telegram bot token
 RHASH = "ca7875208a06d7"
 API = f"https://api.telegram.org/bot{TOKEN}"
-
-# -----------------------------
-# Fetch headline from webpage
-# -----------------------------
-def get_headline(url):
-    try:
-        logging.info(f"Fetching headline for: {url}")
-        res = requests.get(
-            url,
-            timeout=10,
-            headers={"User-Agent": "Mozilla/5.0"}
-        )
-        title = re.search(r"<title>(.*?)</title>", res.text, re.I)
-        if title:
-            clean_title = title.group(1).strip()
-            logging.info(f"Raw headline found: {clean_title}")
-            return clean_title
-        logging.warning("No title found, using default")
-        return "Wararka Ciyaaraha"
-    except Exception as e:
-        logging.error(f"Error fetching headline: {e}")
-        return "Wararka Ciyaaraha"
 
 # -----------------------------
 # Webhook Receiver
@@ -50,7 +28,7 @@ def webhook():
     update = request.get_json()
     logging.info(f"Update received: {update}")
 
-    msg = update.get("channel_post") or update.get("message")
+    msg = update.get("channel_post")
     if not msg or "text" not in msg:
         logging.info("No text message found, ignoring.")
         return "OK", 200
@@ -71,18 +49,22 @@ def webhook():
         return "OK", 200
 
     original_url = match.group(0)
-    title = get_headline(original_url)
 
     # -----------------------------
-    # Clean headline
+    # Full headline (instant, static or derived)
+    # Replace this with your real headline extraction if needed, or predefine
     # -----------------------------
-    clean_title = title.replace("- Kooxda.com", "").replace("Kooxda.com", "").strip()
+    # Example: get the message text itself or a placeholder headline
+    # To guarantee instant reply, do NOT fetch webpage synchronously
+    clean_title = text.replace(original_url, "").replace("- Kooxda.com", "").replace("Kooxda.com", "").strip()
 
     # -----------------------------
-    # Hidden Instant View link for preview (in first space only)
+    # Hidden IV link for Instant View
     # -----------------------------
     iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
     invisible_link = f'<a href="{iv_link}">\u200b</a>'
+
+    # Inject invisible link into the first space only
     words = clean_title.split(" ", 1)
     if len(words) > 1:
         new_text = words[0] + invisible_link + " " + words[1]
@@ -90,33 +72,22 @@ def webhook():
         new_text = clean_title + invisible_link
 
     # -----------------------------
-    # Delete original message
+    # Edit message instantly
     # -----------------------------
     try:
-        resp_del = requests.post(
-            f"{API}/deleteMessage",
-            json={"chat_id": chat_id, "message_id": message_id}
-        )
-        logging.info(f"Delete message response: {resp_del.json()}")
-    except Exception as e:
-        logging.error(f"Failed to delete message: {e}")
-
-    # -----------------------------
-    # Send new message with hidden IV link
-    # -----------------------------
-    try:
-        resp_send = requests.post(
-            f"{API}/sendMessage",
+        resp_edit = requests.post(
+            f"{API}/editMessageText",
             json={
                 "chat_id": chat_id,
+                "message_id": message_id,
                 "text": new_text,
                 "parse_mode": "HTML",
-                "disable_web_page_preview": False  # Telegram shows IV preview
+                "disable_web_page_preview": False  # triggers Instant View preview
             }
         )
-        logging.info(f"Send message response: {resp_send.json()}")
+        logging.info(f"Message edited instantly: {resp_edit.json()}")
     except Exception as e:
-        logging.error(f"Failed to send message: {e}")
+        logging.error(f"Failed to edit message: {e}")
 
     return "OK", 200
 
