@@ -46,6 +46,17 @@ def fix_links():
             })
             print(f"Fixed message {msg_id}")
 
+from flask import Flask
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    return "Bot is running", 200
+
 if __name__ == "__main__":
-    fix_links()
-    
+    # This starts your link fixer in the background
+    threading.Thread(target=fix_links, daemon=True).start()
+    # This starts the web server on port 8000 for Koyeb
+    app.run(host='0.0.0.0', port=8000)
