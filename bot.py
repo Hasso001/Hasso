@@ -34,8 +34,8 @@ def get_headline(url):
         )
         title = re.search(r"<title>(.*?)</title>", res.text, re.I)
         if title:
-            clean_title = title.group(1).split("-")[0].strip()
-            logging.info(f"Headline found: {clean_title}")
+            clean_title = title.group(1).strip()
+            logging.info(f"Raw headline found: {clean_title}")
             return clean_title
         logging.warning("No title found, using default")
         return "Wararka Ciyaaraha"
@@ -77,7 +77,19 @@ def webhook():
 
     original_url = match.group(0)
     title = get_headline(original_url)
+
+    # -----------------------------
+    # Clean headline text
+    # -----------------------------
+    clean_title = title.replace("- Kooxda.com", "").replace("Kooxda.com", "").strip()
+
+    # -----------------------------
+    # Embed invisible IV link in spaces
+    # -----------------------------
     iv_link = f"https://t.me/iv?url={original_url}&rhash={RHASH}"
+    invisible_link = f'<a href="{iv_link}">\u200b</a>'
+    # Inject invisible link after each space
+    new_text = clean_title.replace(" ", f" {invisible_link} ")
 
     # -----------------------------
     # Delete original message
@@ -99,7 +111,7 @@ def webhook():
             f"{API}/sendMessage",
             json={
                 "chat_id": chat_id,
-                "text": f"<b>{title}</b>\n\n{iv_link}",
+                "text": new_text,
                 "parse_mode": "HTML",
                 "disable_web_page_preview": False
             }
