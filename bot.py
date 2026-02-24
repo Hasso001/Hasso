@@ -6,7 +6,7 @@ from flask import Flask, request
 # Logging for Koyeb console troubleshooting
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-app = Flask(name)
+app = Flask(__name__)
 
 # Credentials
 TOKEN = "1952280080:AAHREEZV5XK_nbiPCbZ-dhpu5yzNUDyCqo8"
@@ -67,6 +67,6 @@ def index():
     })
     return f"Setup Result: {response.json()}", 200
 
-if name == "main":
+if __name__ == "__main__":
     # Koyeb requires port 8000
     app.run(host="0.0.0.0", port=8000)
