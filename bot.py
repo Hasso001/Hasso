@@ -16,7 +16,7 @@ app = Flask(__name__)
 # -----------------------------
 # Bot Config
 # -----------------------------
-TOKEN = "PASTE_YOUR_NEW_TOKEN_HERE"  # Replace with your Telegram bot token
+TOKEN = "1952280080:AAHREEZV5XK_nbiPCbZ-dhpu5yzNUDyCqo8"  # Replace with your Telegram bot token
 RHASH = "ca7875208a06d7"
 API = f"https://api.telegram.org/bot{TOKEN}"
 
