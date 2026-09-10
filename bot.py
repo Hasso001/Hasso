@@ -6,7 +6,7 @@ from flask import Flask, request
 # Logging for Koyeb console troubleshooting
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-app = Flask(name)
+app = Flask(__name__)
 
 # Credentials
 TOKEN = "1952280080:AAHREEZV5XK_nbiPCbZ-dhpu5yzNUDyCqo8"
