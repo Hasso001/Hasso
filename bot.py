@@ -43,15 +43,16 @@ def telegram_webhook():
         # Format: Bold title with hidden link
         final_text = f'<b><a href="{iv_link}">{invisible_char}</a>{clean_title}</b>'
 
-        # EDIT: Modify original post
+                # EDIT: Modify original post
         try:
-            requests.post(f"{API_URL}/editMessageText", json={
+            res = requests.post(f"{API_URL}/editMessageText", json={
                 "chat_id": chat_id,
                 "message_id": message_id,
                 "text": final_text,
                 "parse_mode": "HTML",
                 "disable_web_page_preview": False
             })
+            logging.info(f"Telegram response: {res.json()}")
         except Exception as e:
             logging.error(f"Edit failed: {e}")
 
