@@ -41,7 +41,7 @@ def telegram_webhook():
         invisible_char = "\u200b"
         
         # Format: Bold title with hidden link
-        final_text = f'<b><a href="{iv_link}">{invisible_char}</a>{clean_title}</b>'
+        final_text = f'<a href="{iv_link}">\u200b</a><b>{clean_title}</b>'
 
                 # EDIT: Modify original post
         try:
